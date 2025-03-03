@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const port = 3000;
 
 const User = require('./models/User.js');
@@ -17,6 +18,17 @@ mongoose.connect(process.env.MONGODB_URL)
     .then(() => console.log('Connected to MongoDB'))
     .catch((err) => console.error('Error connecting to MongoDB: ',err));
 
+function authenticateToken(req,res,next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token === null) return res.sendStatus(401).json({ message: "Unauthorized" })
+
+        jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+            if(err) return res.sendStatus(403);
+            req.user = user;
+            next();
+        })
+}
 function isEmailGood(email){
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if(!emailRegex.test(email))
@@ -149,6 +161,37 @@ app.post("/api/register", async (req, res) => {
             });
         }
     }
+});
+app.post("/api/login", async (req, res) => {
+    const { login, password } = req.body;
+    try{
+        const user = await User.findOne({ login });
+        if(!user){
+            return res.status(404).json({
+                error: "Not found",
+                message: "Incorrect login!"
+            });
+        }
+        const isMatch = await bcrypt.compare(password, user.password);
+        if(!isMatch){
+            return res.status(401).json({
+                error: "Unauthorized",
+                message: "Wrong password!"
+            });
+        }
+
+        const accessToken = jwt.sign(user.toObject(), process.env.ACCESS_TOKEN_SECRET);
+        res.status(200).json({ accessToken: accessToken});
+    } catch (err){
+        console.error('An error has been occured while login: ', err)
+        return res.status(500).json({
+            error: "Internal server error",
+            message: "Try again later!"
+        })
+    }
+});
+app.get("/api/test", authenticateToken, (req, res) => {
+    res.status(200).json({message: "Authorized access"})
 })
 
 app.listen(port, (req, res) => { console.log(`Server is running on port: ${port}`)});
