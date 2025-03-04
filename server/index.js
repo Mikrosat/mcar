@@ -3,9 +3,14 @@ const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+const fs = require('fs');
+const path = require('path');
 const port = 3000;
 
 const User = require('./models/User.js');
+
+const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
 dotenv.config();
 
@@ -13,22 +18,69 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+setInterval(() => {
+    cleanExpiredTokens();
+}, 5 * 60 * 1000);
+
 
 mongoose.connect(process.env.MONGODB_URL)
     .then(() => console.log('Connected to MongoDB'))
     .catch((err) => console.error('Error connecting to MongoDB: ',err));
 
-function authenticateToken(req,res,next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (token === null) return res.sendStatus(401).json({ message: "Unauthorized" })
-
-        jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
-            if(err) return res.sendStatus(403);
-            req.user = user;
-            next();
-        })
+function readBlacklist(){
+    if(!fs.existsSync(blacklistFilePath)) return [];
+    try{
+        const data = fs.readFileSync(blacklistFilePath, 'utf8');
+        return JSON.parse(data);
+    }
+    catch (err){
+        console.error('Error reading blacklist.json file: ',err);
+        return [];
+    }
 }
+function writeBlacklist(blacklist){
+    fs.writeFileSync(blacklistFilePath, JSON.stringify(blacklist, null, 2), 'utf8');
+}
+function cleanExpiredTokens(){
+    const blacklist = readBlacklist();
+    const currentTime = Date.now();
+    const filteredBlacklist = blacklist.filter(entry => entry.expireTime > currentTime);
+
+    writeBlacklist(filteredBlacklist);
+}
+function addToBlacklist(token){
+    const blacklist = readBlacklist();
+    const expiryTime = Date.now() + 1 * 60 * 1000;
+    blacklist.push({token, expiryTime});
+    writeBlacklist(blacklist);
+}
+function authenticateToken(req, res, next) {
+    const token = req.cookies.jwt;
+    if (!token) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ message: "Forbidden" });
+        }
+        addToBlacklist(token);
+
+        res.clearCookie('jwt', {httpOnly: true, secure: true, sameSite: 'Strict'});
+
+        const newToken = jwt.sign({ id: user.id}, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '30m'});
+
+        res.cookie('jwt', newToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'Strict',
+            maxAge: 30 * 60 * 1000,
+        });
+        next();
+    });
+}
+    
 function isEmailGood(email){
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if(!emailRegex.test(email))
@@ -181,7 +233,13 @@ app.post("/api/login", async (req, res) => {
         }
 
         const accessToken = jwt.sign(user.toObject(), process.env.ACCESS_TOKEN_SECRET);
-        res.status(200).json({ accessToken: accessToken});
+        res.cookie('jwt', accessToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'Strict',
+            maxAge: 15*60*1000,
+        })
+        res.status(200).json({ message: "Logged in!"});
     } catch (err){
         console.error('An error has been occured while login: ', err)
         return res.status(500).json({
