@@ -6,7 +6,10 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const path = require('path');
-const port = 3000;
+
+const port = 3000; //backend port
+const blacklistStoringTime = 45; //minutes
+const tokenExpireTime = 30; //minutes
 
 const User = require('./models/User.js');
 
@@ -52,7 +55,7 @@ function cleanExpiredTokens(){
 }
 function addToBlacklist(token){
     const blacklist = readBlacklist();
-    const expiryTime = Date.now() + 1 * 60 * 1000;
+    const expiryTime = Date.now() + blacklistStoringTime * 60 * 1000;
     blacklist.push({token, expiryTime});
     writeBlacklist(blacklist);
 }
@@ -69,13 +72,13 @@ function authenticateToken(req, res, next) {
 
         res.clearCookie('jwt', {httpOnly: true, secure: true, sameSite: 'Strict'});
 
-        const newToken = jwt.sign({ id: user.id}, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '30m'});
+        const newToken = jwt.sign({ id: user.id}, process.env.ACCESS_TOKEN_SECRET, { expiresIn: `${tokenExpireTime}m`});
 
         res.cookie('jwt', newToken, {
             httpOnly: true,
             secure: true,
             sameSite: 'Strict',
-            maxAge: 30 * 60 * 1000,
+            maxAge: tokenExpireTime * 60 * 1000,
         });
         next();
     });
@@ -237,7 +240,7 @@ app.post("/api/login", async (req, res) => {
             httpOnly: true,
             secure: true,
             sameSite: 'Strict',
-            maxAge: 15*60*1000,
+            maxAge: tokenExpireTime*60*1000,
         })
         res.status(200).json({ message: "Logged in!"});
     } catch (err){
