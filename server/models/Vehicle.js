@@ -65,3 +65,4 @@ const vehicleSchema = new mongoose.Schema({
     mileageTrack: [mileageTrackSchema],
     services: [servicesSchema]
 });
+module.exports = mongoose.model("Vehicle", vehicleSchema);

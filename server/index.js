@@ -12,6 +12,7 @@ const blacklistStoringTime = 45; //minutes
 const tokenExpireTime = 30; //minutes
 
 const User = require('./models/User.js');
+const Vehicle = require('./models/Vehicle.js');
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -64,7 +65,7 @@ function authenticateToken(req, res, next) {
     if (!token) {
         return res.status(401).json({ message: "Unauthorized" });
     }
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
             return res.status(403).json({ message: "Forbidden" });
         }
@@ -72,7 +73,8 @@ function authenticateToken(req, res, next) {
 
         res.clearCookie('jwt', {httpOnly: true, secure: true, sameSite: 'Strict'});
 
-        const newToken = jwt.sign({ id: user.id}, process.env.ACCESS_TOKEN_SECRET, { expiresIn: `${tokenExpireTime}m`});
+
+        const newToken = jwt.sign({ _id: decoded._id}, process.env.ACCESS_TOKEN_SECRET, { expiresIn: `${tokenExpireTime}m`});
 
         res.cookie('jwt', newToken, {
             httpOnly: true,
@@ -80,6 +82,7 @@ function authenticateToken(req, res, next) {
             sameSite: 'Strict',
             maxAge: tokenExpireTime * 60 * 1000,
         });
+        req.userID = decoded._id;
         next();
     });
 }
@@ -249,6 +252,71 @@ app.post("/api/login", async (req, res) => {
             error: "Internal server error",
             message: "Try again later!"
         })
+    }
+});
+app.post("/api/addVehicle", authenticateToken, async (req, res) => {
+    const {brand, model, mileage} = req.body;
+    const yearProduction = parseInt(req.body.yearProduction);
+    if(!brand || brand.length < 3 || brand.length > 20){
+        res.status(422).json({
+            error: "Invalid brand input",
+            message: "Brand cannot be empty, have more than 20 characters or less than 3 characters!"
+        });
+    }
+    else if(!model || model.length < 3 || model.length > 20){
+        res.status(422).json({
+            error: "Invalid model input",
+            message: "Model cannot be empty, have more than 20 characters or less than 3 characters!"
+        });
+    }
+    else if(!yearProduction){
+        res.status(422).json({
+            error: "Invalid year production input",
+            message: "Year production cannot be empty or contain characters!"
+        });
+    }
+    else if(typeof mileage !== 'number' || isNaN(mileage)){
+        res.status(422).json({
+            error: "Invalid mileage input",
+            message: "Mileage cannot be empty or contain characters!"
+        });
+    }
+    else{
+        const addNewVehicle = async () => {
+            try{
+                const newVehicle = new Vehicle({
+                    brand: brand,
+                    model: model,
+                    yearProduction: yearProduction,
+                    owners: [{ownerID: req.userID, role: "Owner"}],
+                    mileageTrack: [
+                        {
+                            mileageDate: new Date(),
+                            mileage: mileage
+                        }
+                    ],
+                    services: []
+                });
+                await newVehicle.save();
+                return newVehicle;
+            } catch (err){
+                console.error("Error during vehicle creating: ",err.message);
+                throw err;
+            }
+        }
+        try{
+            const savedVehicle = await addNewVehicle();
+            res.status(200).json({
+                message: "Vehicle added!"
+            });
+        } catch (err){
+            console.error("Error during vehicle creating: ",err.message);
+            res.status(500).json({
+                error: "Internal server error",
+                message: "Internal server error occured while adding new vehicle! Try again later"
+            });
+        }
+
     }
 });
 app.get("/api/test", authenticateToken, (req, res) => {
