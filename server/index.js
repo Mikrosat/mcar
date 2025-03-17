@@ -111,6 +111,12 @@ function userAge(birthday){
         age--;
     return age;
 }
+function isServiceTypeGood(type){
+    if(type === 'oilService' || type == "regularService")
+        return false;
+    else
+        return true;
+}
 async function isUserExist(lookingFor, value){
     try {
         const user = await User.findOne({ [lookingFor]: value});
@@ -319,6 +325,82 @@ app.post("/api/addVehicle", authenticateToken, async (req, res) => {
 
     }
 });
+app.post("/api/addService", authenticateToken, async (req, res) => {
+    const {title, type, description, mileage, mileageTest} = req.body;
+    const date = new Date(req.body.date);
+    let vehicleID;
+    if(mongoose.Types.ObjectId.isValid(req.body.vehicleID)){
+        vehicleID = new mongoose.Types.ObjectId(`${req.body.vehicleID}`);
+    }
+    else{
+        return res.status(422).json({
+            error: "Invalid vehicle ID value",
+            message: "Vehicle ID is invalid!"
+        })
+    }
+    
+    if(!title || title.length < 3 || title.length > 20){
+        return res.status(422).json({
+            error: "Invalid title input",
+            message: "Title cannot be empty, and have to have 3-20 characters!" 
+        });
+    }
+    else if(!vehicleID){
+        return res.status(422).json({
+            error: "Invalid vehicleID input",
+            message: "VehicleID is invalid!"
+        })
+    }
+    else if(!type || isServiceTypeGood(type)){
+        return res.status(422).json({
+            error: "Invalid type input",
+            message: "The type cannot be empty and must match a supported type!"
+        });
+    }
+    else if(description.length > 2000){
+        return res.status(422).json({
+            error: "Invalid description input",
+            message: "Description can't be longer than 2000 characters"
+        });
+    }
+    else if(!date || !(date instanceof Date) || isNaN(date.getTime())){
+        return res.status(422).json({
+            error: "Invalid date input",
+            message: "Date must be a date format!"
+        });
+    }
+    else if(typeof mileage !== 'number' || isNaN(mileage)){
+        return res.status(422).json({
+            error: "Invalid mileage input",
+            message: "Mileage must be a number!"
+        })
+    }
+    else if(typeof mileageTest !== 'boolean'){
+        return res.status(422).json({
+            error: "Invalid mileage test value!",
+            message: "."
+        })
+    }
+    else{
+        if(mileageTest){
+            const mileageObject = await Vehicle.findOne({
+                _id: vehicleID,
+                "mileageTrack.mileageDate": { $lte: new Date(date) }
+            }, {
+                "mileageTrack": {
+                    $elemMatch: { mileageDate: { $lte: new Date(date) } }
+                }
+            });
+            if(mileageObject?.mileageTrack[0].mileage > mileage){
+                return res.status(422).json({
+                    error: "Invalid mileage input",
+                    message: "Last mileage is higher then now, typo or ilegal actions?"
+                })
+            }
+        }
+        return res.status(200).json({message: "Validation success!"})
+    }
+});;
 app.get("/api/test", authenticateToken, (req, res) => {
     res.status(200).json({message: "Authorized access"})
 })
