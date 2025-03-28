@@ -44,6 +44,10 @@ const servicesSchema = new mongoose.Schema({
     mileage: {
         type: Number,
         required: true
+    },
+    cost: {
+        type: Number,
+        required: true
     }
 })
 const vehicleSchema = new mongoose.Schema({

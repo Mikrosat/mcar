@@ -326,9 +326,9 @@ app.post("/api/addVehicle", authenticateToken, async (req, res) => {
     }
 });
 app.post("/api/addService", authenticateToken, async (req, res) => {
-    const {title, type, description, mileage, mileageTest} = req.body;
+    const {title, type, description, mileage, mileageTest, cost} = req.body;
     const date = new Date(req.body.date);
-    let vehicleID;
+    let vehicleID = req.body.vehicleID;
     if(mongoose.Types.ObjectId.isValid(req.body.vehicleID)){
         vehicleID = new mongoose.Types.ObjectId(`${req.body.vehicleID}`);
     }
@@ -375,6 +375,12 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
             message: "Mileage must be a number!"
         })
     }
+    else if(typeof cost !== 'number' || isNaN(cost)){
+        return res.status(422).json({
+            error: "Invalid cost input",
+            message: "Cost must be number!"
+        });
+    }
     else if(typeof mileageTest !== 'boolean'){
         return res.status(422).json({
             error: "Invalid mileage test value!",
@@ -398,7 +404,41 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
                 })
             }
         }
-        return res.status(200).json({message: "Validation success!"})
+        const newService = {
+            title: title,
+            type: type,
+            date: date,
+            description: description,
+            mileage: mileage,
+            cost: cost
+        }
+        try{
+            const vehicle = await Vehicle.findById(vehicleID);
+            if(!vehicle){
+                return res.status(404).json({
+                    error: "Vehicle not found!",
+                    message: "Vehicle is not in database, check if all data is correct and try again later"
+                })
+            }
+            const userHasPermission = vehicle.owners.some(owner =>
+                owner.ownerID.toString() === req.userID.toString() && ["Admin", "Owner"].includes(owner.role)
+            );
+            if(!userHasPermission){
+                return res.status(403).json({ error: "Forbidden", message: "You do not have permission!"});
+            }
+            vehicle.services.push(newService);
+            await vehicle.save();
+            return res.status(200).json({
+                message: "Service added!"
+            })
+
+        } catch (err){
+            console.error("An error has been occured while adding vehicle: ",err);
+            return res.status(500).json({
+                error: "Internal server error",
+                message: "Internal server error! Try again later"
+            });
+        }
     }
 });;
 app.get("/api/test", authenticateToken, (req, res) => {
