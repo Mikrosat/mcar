@@ -14,6 +14,8 @@ const tokenExpireTime = 30; //minutes
 const User = require('./models/User.js');
 const Vehicle = require('./models/Vehicle.js');
 
+const loginSchema = require("./schemas/loginSchema.js");
+
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
 dotenv.config();
@@ -227,6 +229,14 @@ app.post("/api/register", async (req, res) => {
     }
 });
 app.post("/api/login", async (req, res) => {
+    const {error} = loginSchema.validate(req.body);
+    if(error){
+        return res.status(400).json({
+            error: "Bad request",
+            message: error.details[0].message
+        });
+    }
+
     const { login, password } = req.body;
     try{
         const user = await User.findOne({ login });
@@ -244,7 +254,7 @@ app.post("/api/login", async (req, res) => {
             });
         }
 
-        const accessToken = jwt.sign(user.toObject(), process.env.ACCESS_TOKEN_SECRET);
+        const accessToken = jwt.sign(user.toObject(), process.env.ACCESS_TOKEN_SECRET, {expiresIn: `${tokenExpireTime}m`});
         res.cookie('jwt', accessToken, {
             httpOnly: true,
             secure: true,
