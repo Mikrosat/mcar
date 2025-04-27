@@ -15,6 +15,7 @@ const User = require('./models/User.js');
 const Vehicle = require('./models/Vehicle.js');
 
 const loginSchema = require("./schemas/loginSchema.js");
+const registerSchema = require("./schemas/registerSchema.js");
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -88,31 +89,6 @@ function authenticateToken(req, res, next) {
         next();
     });
 }
-    
-function isEmailGood(email){
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if(!emailRegex.test(email))
-        return false;
-    if([...email].some(c => c.charCodeAt(0) >= 128))
-        return false;
-
-    return true;
-}
-function isFirstCharacterDigit(str){
-    if (str && str.length > 0)
-        return /^\d/.test(str.charAt(0));
-    return true;
-}
-function userAge(birthday){
-    const today = new Date();
-    let birthDate = new Date(birthday);
-
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDifferance = today.getMonth() - birthDate.getMonth();
-    if (monthDifferance < 0 || (monthDifferance === 0 && today.getDate() < birthDate.getDate()))
-        age--;
-    return age;
-}
 function isServiceTypeGood(type){
     if(type === 'oilService' || type == "regularService")
         return false;
@@ -130,104 +106,60 @@ async function isUserExist(lookingFor, value){
 }
 
 app.post("/api/register", async (req, res) => {
-    const {name, surname, email, login, password, birthday} = req.body;
-    console.log(birthday)
+    const { name, surname, email, login, password, birthday } = req.body;
+
     let formattedBirthday = new Date(birthday + "T00:00:00");
     formattedBirthday.setMinutes(formattedBirthday.getMinutes() - formattedBirthday.getTimezoneOffset());
-    console.log(formattedBirthday)
 
-    if(!name || name > 30 || /\d/.test(name)){
-        res.status(422).json({
-            error: "Invalid name input",
-            message: "Name cannot be empty, have more than 30 characters or contains digits!"
+    try {
+        await registerSchema.validateAsync({
+            name,
+            surname,
+            email,
+            login,
+            password,
+            birthdate: formattedBirthday
         });
-    }
-    else if(!surname || surname > 30 || /\d/.test(surname)){
-        res.status(422).json({
-            error: "Invalid surname input",
-            message: "Surname cannot be empty, have more than 30 characters or constains digits!"
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({
+            name,
+            surname,
+            email,
+            birthday: formattedBirthday,
+            login,
+            password: hashedPassword
         });
-    }
-    else if(!isEmailGood(email)){
-        res.status(422).json({
-            error: "Invalid email input",
-            message: "Email is incorrect!"
-        })
-    }
-    else if(await isUserExist("email", email)){
-        console.log(birthday);
-        res.status(409).json({
-            error: "Email occupied",
-            message: "User with this email adress already exist!"
-        })
-    }
-    else if(!login || login > 20 || login < 3 || isFirstCharacterDigit(login)){
-        res.status(422).json({
-            error: "Invalid login input",
-            message: "Login cannot starts with digid and has to be 3-20 characters long!"
-        })
-    }
-    else if(await isUserExist("login", login)){
-        res.status(409).json({
-            error: "Login occupied",
-            message: "User with this login already exist!"
-        })
-    }
-    else if(!password || password.length > 35 || password.length < 8){
-        res.status(422).json({
-            error: "Invalid password input",
-            message: "Password have to be 8-35 characters long!"
-        })
-    }
-    else if(!formattedBirthday || isNaN(formattedBirthday.getTime())){
-        res.status(422).json({
-            error: "Invalid birthday input",
-            message: "Birthday is invalid!"
-        })
-    }
-    else if(userAge(formattedBirthday) < 13){
-        res.status(422).json({
-            error: "Invalid birthday input",
-            message: "User is too young to use website!"
-        })
-    }
-    else{
-        const addUser = async () => {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            try {
-                const newUser = new User({
-                    name: name,
-                    surname: surname,
-                    email: email,
-                    birthday: formattedBirthday,
-                    login: login,
-                    password: hashedPassword
-                });
-                await newUser.save();
-                return newUser;
-            } catch(err){
-                console.error("Error during user registration: ",err.message);
-                res.status(500).json({
-                    error: "Internal server error",
-                    message: "Internal server error occured while registering! Try again later!"
-                });
-                throw error;
-            }
-        }
-        try{
-            const savedUser = await addUser();
-            res.status(200).json({
-                message: "User registered!"
-            })
-        } catch (err){
-            console.error("An error has been occured while registering user: ",err);
-            res.status(500).json({
+
+        const savedUser = await newUser.save();
+
+        return res.status(201).json({
+            message: "User registered successfully!"
+        });
+
+    } catch (error) {
+        if (error.isJoi) {
+            return res.status(400).json({
+                error: "Bad request",
+                message: error.details[0].message
+            });
+        } else if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
+            return res.status(409).json({
+                error: "Conflict",
+                message: `${field} is already in use!`
+            });
+        } else {
+            console.error(`An unexpected error has been occured while registering new account: `, error);
+            return res.status(500).json({
                 error: "Internal server error",
-                message: "Internal server error occured while registering! Try again later!"
+                message: error.message || "An unexpected error occurred."
             });
         }
     }
 });
+
+
 app.post("/api/login", async (req, res) => {
     const {error} = loginSchema.validate(req.body);
     if(error){
