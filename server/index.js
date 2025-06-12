@@ -16,6 +16,7 @@ const Vehicle = require('./models/Vehicle.js');
 
 const loginSchema = require("./schemas/loginSchema.js");
 const registerSchema = require("./schemas/registerSchema.js");
+const addServiceSchema = require("./schemas/addServiceSchema.js");
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -274,115 +275,48 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
     if(mongoose.Types.ObjectId.isValid(req.body.vehicleID)){
         vehicleID = new mongoose.Types.ObjectId(`${req.body.vehicleID}`);
     }
-    else{
-        return res.status(422).json({
-            error: "Invalid vehicle ID value",
-            message: "Vehicle ID is invalid!"
-        })
+    try {
+        const value = await addServiceSchema.validateAsync({
+            title,
+            type,
+            description,
+            mileage,
+            mileageTest,
+            cost,
+            date,
+            vehicleID,
+            userID: req.userID,
+        });
+    } catch (error) {
+        return res.status(400).json({
+            error: "Bad Request",
+            message: error.details?.map(detail => detail.message).join(', ') || error.message
+        });
     }
     
-    if(!title || title.length < 3 || title.length > 20){
-        return res.status(422).json({
-            error: "Invalid title input",
-            message: "Title cannot be empty, and have to have 3-20 characters!" 
-        });
+    const newService = {
+        title: title,
+        type: type,
+        date: date,
+        description: description,
+        mileage: mileage,
+        cost: cost
     }
-    else if(!vehicleID){
-        return res.status(422).json({
-            error: "Invalid vehicleID input",
-            message: "VehicleID is invalid!"
+    try{
+        const vehicle = await Vehicle.findById(vehicleID);
+        vehicle.services.push(newService);
+        await vehicle.save();
+        return res.status(200).json({
+            message: "Service added!"
         })
-    }
-    else if(!type || isServiceTypeGood(type)){
-        return res.status(422).json({
-            error: "Invalid type input",
-            message: "The type cannot be empty and must match a supported type!"
+    } catch (err){
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
         });
     }
-    else if(description.length > 2000){
-        return res.status(422).json({
-            error: "Invalid description input",
-            message: "Description can't be longer than 2000 characters"
-        });
-    }
-    else if(!date || !(date instanceof Date) || isNaN(date.getTime())){
-        return res.status(422).json({
-            error: "Invalid date input",
-            message: "Date must be a date format!"
-        });
-    }
-    else if(typeof mileage !== 'number' || isNaN(mileage)){
-        return res.status(422).json({
-            error: "Invalid mileage input",
-            message: "Mileage must be a number!"
-        })
-    }
-    else if(typeof cost !== 'number' || isNaN(cost)){
-        return res.status(422).json({
-            error: "Invalid cost input",
-            message: "Cost must be number!"
-        });
-    }
-    else if(typeof mileageTest !== 'boolean'){
-        return res.status(422).json({
-            error: "Invalid mileage test value!",
-            message: "."
-        })
-    }
-    else{
-        if(mileageTest){
-            const mileageObject = await Vehicle.findOne({
-                _id: vehicleID,
-                "mileageTrack.mileageDate": { $lte: new Date(date) }
-            }, {
-                "mileageTrack": {
-                    $elemMatch: { mileageDate: { $lte: new Date(date) } }
-                }
-            });
-            if(mileageObject?.mileageTrack[0].mileage > mileage){
-                return res.status(422).json({
-                    error: "Invalid mileage input",
-                    message: "Last mileage is higher then now, typo or ilegal actions?"
-                })
-            }
-        }
-        const newService = {
-            title: title,
-            type: type,
-            date: date,
-            description: description,
-            mileage: mileage,
-            cost: cost
-        }
-        try{
-            const vehicle = await Vehicle.findById(vehicleID);
-            if(!vehicle){
-                return res.status(404).json({
-                    error: "Vehicle not found!",
-                    message: "Vehicle is not in database, check if all data is correct and try again later"
-                })
-            }
-            const userHasPermission = vehicle.owners.some(owner =>
-                owner.ownerID.toString() === req.userID.toString() && ["Admin", "Owner"].includes(owner.role)
-            );
-            if(!userHasPermission){
-                return res.status(403).json({ error: "Forbidden", message: "You do not have permission!"});
-            }
-            vehicle.services.push(newService);
-            await vehicle.save();
-            return res.status(200).json({
-                message: "Service added!"
-            })
+})
 
-        } catch (err){
-            console.error("An error has been occured while adding vehicle: ",err);
-            return res.status(500).json({
-                error: "Internal server error",
-                message: "Internal server error! Try again later"
-            });
-        }
-    }
-});;
 app.get("/api/test", authenticateToken, (req, res) => {
     res.status(200).json({message: "Authorized access"})
 })

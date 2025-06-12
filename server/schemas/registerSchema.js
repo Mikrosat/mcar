@@ -17,7 +17,7 @@ const registerSchema = Joi.object({
   name: Joi.string().max(30).min(3).pattern(/^[^\d]*$/).required()
     .messages({
       'string.pattern.base': 'Name cannot contain numbers',
-      'string.max': 'Name cannot be more than 30 characters',
+      'string.max': 'Name cannot be longer than 30 characters',
       'string.min': 'Name must be at least 3 characters',
       'any.required': 'Name is required'
     }),
