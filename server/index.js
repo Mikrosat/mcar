@@ -7,9 +7,11 @@ const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const path = require('path');
 
-const port = 3000; //backend port
-const blacklistStoringTime = 45; //minutes
-const tokenExpireTime = 30; //minutes
+dotenv.config();
+
+const port = process.env.BACKEND_PORT || 3000;
+const blacklistStoringTime = 45;
+const tokenExpireTime = 30;
 
 const User = require('./models/User.js');
 const Vehicle = require('./models/Vehicle.js');
@@ -21,7 +23,6 @@ const addVehicleSchema = require("./schemas/addVehicleSchema.js");
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
-dotenv.config();
 
 const app = express();
 
@@ -91,22 +92,6 @@ function authenticateToken(req, res, next) {
         next();
     });
 }
-function isServiceTypeGood(type){
-    if(type === 'oilService' || type == "regularService")
-        return false;
-    else
-        return true;
-}
-async function isUserExist(lookingFor, value){
-    try {
-        const user = await User.findOne({ [lookingFor]: value});
-        return !!user;
-    } catch(err){
-        console.error('An error has been occured while checking is user exist: ',err);
-        return true;
-    }
-}
-
 app.post("/api/register", async (req, res) => {
     const { name, surname, email, login, password, birthday } = req.body;
 
@@ -298,6 +283,7 @@ app.get("/api/getAllVehicles", authenticateToken, async (req, res) => {
             brand: 1,
             model: 1,
             productionYear: 1,
+            _id: 1
         });
         return res.status(200).json(vehicles);
     } catch(err){
