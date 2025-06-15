@@ -290,7 +290,21 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
         });
     }
 })
-
+app.get("/api/getAllVehicles", authenticateToken, async (req, res) => {
+    try{
+        const vehicles = await Vehicle.find({
+            'owners.ownerID': req.userID
+        },{ 
+            brand: 1,
+            model: 1,
+            productionYear: 1,
+        });
+        return res.status(200).json(vehicles);
+    } catch(err){
+        console.error("An error has been occured while getting vehicles: ", err);
+        return res.status(500).json({ error: "Internal server error!", message: "Internal server error! Try again later!"});
+    }
+});
 app.get("/api/test", authenticateToken, (req, res) => {
     res.status(200).json({message: "Authorized access"})
 })
