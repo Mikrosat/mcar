@@ -17,6 +17,7 @@ const Vehicle = require('./models/Vehicle.js');
 const loginSchema = require("./schemas/loginSchema.js");
 const registerSchema = require("./schemas/registerSchema.js");
 const addServiceSchema = require("./schemas/addServiceSchema.js");
+const addVehicleSchema = require("./schemas/addVehicleSchema.js");
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -204,69 +205,42 @@ app.post("/api/login", async (req, res) => {
     }
 });
 app.post("/api/addVehicle", authenticateToken, async (req, res) => {
-    const {brand, model, mileage} = req.body;
-    const yearProduction = parseInt(req.body.yearProduction);
-    if(!brand || brand.length < 3 || brand.length > 20){
-        res.status(422).json({
-            error: "Invalid brand input",
-            message: "Brand cannot be empty, have more than 20 characters or less than 3 characters!"
+    const {brand, model, mileage, productionYear} = req.body;
+    const {error} = addVehicleSchema.validate({brand,model,mileage,productionYear});
+    if(error){
+        return res.status(400).json({
+            error: "Bad request",
+            message: error.details[0].message
         });
     }
-    else if(!model || model.length < 3 || model.length > 20){
-        res.status(422).json({
-            error: "Invalid model input",
-            message: "Model cannot be empty, have more than 20 characters or less than 3 characters!"
+    try{
+        const now = new Date();
+        const newVehicle = new Vehicle({
+            brand: brand,
+            model: model,
+            productionYear: productionYear,
+            owners: [{ownerID: req.userID, role: "Owner"}],
+            mileageTrack: [
+                {
+                    mileageDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+                    mileage: mileage
+                }
+            ],
+            serivces: []
         });
-    }
-    else if(!yearProduction){
-        res.status(422).json({
-            error: "Invalid year production input",
-            message: "Year production cannot be empty or contain characters!"
-        });
-    }
-    else if(typeof mileage !== 'number' || isNaN(mileage)){
-        res.status(422).json({
-            error: "Invalid mileage input",
-            message: "Mileage cannot be empty or contain characters!"
-        });
-    }
-    else{
-        const addNewVehicle = async () => {
-            try{
-                const newVehicle = new Vehicle({
-                    brand: brand,
-                    model: model,
-                    yearProduction: yearProduction,
-                    owners: [{ownerID: req.userID, role: "Owner"}],
-                    mileageTrack: [
-                        {
-                            mileageDate: new Date(),
-                            mileage: mileage
-                        }
-                    ],
-                    services: []
-                });
-                await newVehicle.save();
-                return newVehicle;
-            } catch (err){
-                console.error("Error during vehicle creating: ",err.message);
-                throw err;
-            }
-        }
-        try{
-            const savedVehicle = await addNewVehicle();
-            res.status(200).json({
-                message: "Vehicle added!"
-            });
-        } catch (err){
-            console.error("Error during vehicle creating: ",err.message);
-            res.status(500).json({
-                error: "Internal server error",
-                message: "Internal server error occured while adding new vehicle! Try again later"
-            });
-        }
+        await newVehicle.save();
+        return res.status(200).json({
+            message: "Vehicle added!"
+        })
 
+    } catch(err){
+        console.error('Error during vehicle creating: ',err.message);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
     }
+
 });
 app.post("/api/addService", authenticateToken, async (req, res) => {
     const {title, type, description, mileage, mileageTest, cost} = req.body;

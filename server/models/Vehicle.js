@@ -61,7 +61,7 @@ const vehicleSchema = new mongoose.Schema({
         required: true,
         trim: true,
     },
-    yearProduction: {
+    productionYear: {
         type: Number,
         required: true,
     },
