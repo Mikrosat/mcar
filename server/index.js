@@ -252,18 +252,25 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
             message: error.details?.map(detail => detail.message).join(', ') || error.message
         });
     }
-    
+    const mileageID = new mongoose.Types.ObjectId();
+
+    const newMileage = {
+        mileageDate: date,
+        mileage: mileage,
+        _id: mileageID
+    };
     const newService = {
         title: title,
         type: type,
         date: date,
         description: description,
-        mileage: mileage,
+        mileage: mileageID,
         cost: cost
     }
     try{
         const vehicle = await Vehicle.findById(vehicleID);
         vehicle.services.push(newService);
+        vehicle.mileageTrack.push(newMileage);
         await vehicle.save();
         return res.status(200).json({
             message: "Service added!"

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Schema, Types } = require('mongoose');
 
 const ownersSchema = new mongoose.Schema({
     ownerID: {
@@ -42,7 +43,7 @@ const servicesSchema = new mongoose.Schema({
         required: true,
     },
     mileage: {
-        type: Number,
+        type: Types.ObjectId,
         required: true
     },
     cost: {
