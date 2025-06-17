@@ -282,6 +282,43 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
         });
     }
 })
+app.delete("/api/deleteVehicle", authenticateToken, async (req, res) => {
+    try{
+        const {vehicleID} = req.body;
+
+        if(!mongoose.Types.ObjectId.isValid(vehicleID)){
+            return res.status(400).json({
+                error: "Invalid ID",
+                message: "The provided ID is not valid. Please check and try again"
+            })
+        }
+        const vehicle = await Vehicle.findById(vehicleID);
+        if(!vehicle){
+            return res.status(404).json({
+                error: "Vehicle not found!"
+            });
+        }
+        const hasAccess = vehicle.owners.some(owner =>
+            owner.ownerID.toString() === req.userID && owner.role === 'Owner'
+        );
+        if(!hasAccess){
+            return res.status(401).json({
+                error: "Access denied!",
+                message: "You do not have permission to delete this vehicle!"
+            })
+        }
+        await vehicle.deleteOne();
+        return res.status(200).json({
+            message: "Vehicle deleted!"
+        });
+    } catch(err){
+        console.error("An error has been occured while deleting vehicle: ",err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
+    }
+})
 app.get("/api/getAllVehicles", authenticateToken, async (req, res) => {
     try{
         const vehicles = await Vehicle.find({
