@@ -298,6 +298,37 @@ app.get("/api/getAllVehicles", authenticateToken, async (req, res) => {
         return res.status(500).json({ error: "Internal server error!", message: "Internal server error! Try again later!"});
     }
 });
+app.get("/api/getVehicleDetails/:id", authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const vehicle = await Vehicle.findById(id).lean(); 
+
+        if (!vehicle) {
+            return res.status(404).json({ error: "Vehicle not found" });
+        }
+
+        const hasAccess = vehicle.owners.some(owner => owner.ownerID.toString() === req.userID);
+        if(!hasAccess){
+            return res.status(403).json({ error: "Access denied", message: "You do not have access to this vehicle!"});
+        }
+
+        const mileageMap = new Map(vehicle.mileageTrack.map(mt => [mt._id.toString(), mt.mileage]));
+
+        vehicle.services = vehicle.services.map(service => ({
+            ...service,
+            mileage: mileageMap.get(service.mileage.toString()) ?? service.mileage
+        }));
+
+        return res.status(200).json(vehicle);
+    } catch (err) {
+        console.error('An error occurred while getting vehicle details: ', err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        });
+    }
+});
+
 app.get("/api/test", authenticateToken, (req, res) => {
     res.status(200).json({message: "Authorized access"})
 })
