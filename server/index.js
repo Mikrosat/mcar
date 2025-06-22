@@ -20,6 +20,7 @@ const loginSchema = require("./schemas/loginSchema.js");
 const registerSchema = require("./schemas/registerSchema.js");
 const addServiceSchema = require("./schemas/addServiceSchema.js");
 const addVehicleSchema = require("./schemas/addVehicleSchema.js");
+const editServiceSchema = require("./schemas/editServiceSchema.js");
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -282,6 +283,85 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
         });
     }
 })
+app.post("/api/editService", authenticateToken, async (req, res) => {
+    const {title,type,description,mileage,mileageTest,cost} = req.body;
+    const date = new Date(req.body.date);
+    let vehicleID, serviceID;
+    if(mongoose.Types.ObjectId.isValid(req.body.vehicleID)){
+        vehicleID = new mongoose.Types.ObjectId(`${req.body.vehicleID}`);
+    }
+    if(mongoose.Types.ObjectId.isValid(req.body.serviceID)){
+        serviceID = new mongoose.Types.ObjectId(`${req.body.serviceID}`);
+    }
+    try{
+        const value = await editServiceSchema.validateAsync({
+            title,
+            type,
+            description,
+            mileage,
+            mileageTest,
+            cost,
+            date,
+            userID: req.userID,
+            serviceID,
+            vehicleID
+        })
+    } catch (error){
+        return res.status(400).json({
+            error: "Bad Request",
+            message: error.details?.map(detail => detail.message).join(', ') || error.message
+        });
+    }
+    try{
+const vehicle = await Vehicle.findById(vehicleID);
+
+const serviceIndex = vehicle.services.findIndex(s => s._id.equals(serviceID));
+
+if (serviceIndex > -1) {
+
+    const mileageID = vehicle.services[serviceIndex].mileage;
+
+    const mileageTrackIndex = vehicle.mileageTrack.findIndex(m => m._id.equals(mileageID));
+
+    if (mileageTrackIndex > -1) {
+        const newServiceObject = {
+            title: title,
+            type: type,
+            description: description,
+            mileage: mileageID,
+            cost: cost,
+            date: date,
+            _id: serviceID
+        };
+
+        const newMileageObject = {
+            mileageDate: date,
+            mileage: mileage,
+            _id: mileageID
+        };
+
+        vehicle.services[serviceIndex] = newServiceObject;
+        vehicle.mileageTrack[mileageTrackIndex] = newMileageObject;
+
+        await vehicle.save();
+
+        return res.status(200).json({
+            message: "Zaktualizowano pomyślnie"
+        });
+    }
+}
+return res.status(404).json({
+    error: "Not found!",
+    message: "ServiceID or Mileage not found"
+});
+    } catch (err){
+        console.error("An error has been occured while editing service: ",err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
+    }
+})
 app.delete("/api/deleteVehicle", authenticateToken, async (req, res) => {
     try{
         const {vehicleID} = req.body;
@@ -365,9 +445,5 @@ app.get("/api/getVehicleDetails/:id", authenticateToken, async (req, res) => {
         });
     }
 });
-
-app.get("/api/test", authenticateToken, (req, res) => {
-    res.status(200).json({message: "Authorized access"})
-})
 
 app.listen(port, (req, res) => { console.log(`Server is running on port: ${port}`)});
