@@ -313,42 +313,42 @@ app.post("/api/editService", authenticateToken, async (req, res) => {
         });
     }
     try{
-const vehicle = await Vehicle.findById(vehicleID);
+        const vehicle = await Vehicle.findById(vehicleID);
 
-const serviceIndex = vehicle.services.findIndex(s => s._id.equals(serviceID));
+        const serviceIndex = vehicle.services.findIndex(s => s._id.equals(serviceID));
 
-if (serviceIndex > -1) {
+        if (serviceIndex > -1) {
 
-    const mileageID = vehicle.services[serviceIndex].mileage;
+            const mileageID = vehicle.services[serviceIndex].mileage;
 
-    const mileageTrackIndex = vehicle.mileageTrack.findIndex(m => m._id.equals(mileageID));
+            const mileageTrackIndex = vehicle.mileageTrack.findIndex(m => m._id.equals(mileageID));
 
-    if (mileageTrackIndex > -1) {
-        const newServiceObject = {
-            title: title,
-            type: type,
-            description: description,
-            mileage: mileageID,
-            cost: cost,
-            date: date,
-            _id: serviceID
-        };
+            if (mileageTrackIndex > -1) {
+                const newServiceObject = {
+                    title: title,
+                    type: type,
+                    description: description,
+                    mileage: mileageID,
+                    cost: cost,
+                    date: date,
+                    _id: serviceID
+                };
 
-        const newMileageObject = {
-            mileageDate: date,
-            mileage: mileage,
-            _id: mileageID
-        };
+                const newMileageObject = {
+                    mileageDate: date,
+                    mileage: mileage,
+                    _id: mileageID
+                };
 
-        vehicle.services[serviceIndex] = newServiceObject;
-        vehicle.mileageTrack[mileageTrackIndex] = newMileageObject;
+                vehicle.services[serviceIndex] = newServiceObject;
+                vehicle.mileageTrack[mileageTrackIndex] = newMileageObject;
 
-        await vehicle.save();
+                await vehicle.save();
 
-        return res.status(200).json({
-            message: "Zaktualizowano pomyślnie"
-        });
-    }
+                return res.status(200).json({
+                    message: "Service edited!"
+                });
+            }
 }
 return res.status(404).json({
     error: "Not found!",
@@ -393,6 +393,68 @@ app.delete("/api/deleteVehicle", authenticateToken, async (req, res) => {
         });
     } catch(err){
         console.error("An error has been occured while deleting vehicle: ",err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
+    }
+})
+app.delete("/api/deleteService", authenticateToken, async (req, res) => {
+    try{
+        const {vehicleID, serviceID} = req.body;
+        if(!mongoose.Types.ObjectId.isValid(vehicleID)){
+            return res.status(400).json({
+                error: "Invalid vehicle ID",
+                message: "The provided vehicle ID is not valid. Please check and try again later"
+            });
+        }
+        if(!mongoose.Types.ObjectId.isValid(serviceID)){
+            return res.status(400).json({
+                error: "Invalid service ID",
+                message: "The provided service ID is not valid. Please check and try again later"
+            })
+        }
+
+        const vehicle = await Vehicle.findById(vehicleID);
+        
+        if(!vehicle)
+            return res.status(404).json({
+                error: "Not found!",
+                message: "Vehicle at provided ID does not exist!"
+            })
+
+        const hasAccess = vehicle.owners.some(owner =>
+            owner.ownerID.toString() === req.userID &&
+            (owner.role === 'Owner' || owner.role === 'Admin')
+        );
+
+        if(!hasAccess){
+            return res.status(401).json({
+                error: "Unathorized",
+                message: "You do not have permission to delete service!"
+            })
+        }
+        const index = vehicle.services.findIndex(i => i._id.toString() === serviceID);
+        if(index === -1)
+            return res.status(404).json({
+                error: "Not found!",
+                message: "Service at provided ID does not exist!"
+            });
+        const serviceToRemove = vehicle.services.splice(index,1)[0];
+        const mileageID = serviceToRemove.mileage;
+        const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id === mileageID);
+        if(mileageIndex === -1)
+            return res.status(500).json({
+                error: "Internal server error!",
+                message: "Unexcpected server error! Contact admin"
+        })
+        vehicle.mileageTrack.splice(mileageIndex,1)[0];
+        await vehicle.save();
+        return res.status(200).json({
+            message: "Service deleted!"
+        })
+    } catch (err){
+        console.error("An error has been occured while deleting service: ",err);
         return res.status(500).json({
             error: "Internal server error!",
             message: "Internal server error! Try again later!"
