@@ -21,6 +21,7 @@ const registerSchema = require("./schemas/registerSchema.js");
 const addServiceSchema = require("./schemas/addServiceSchema.js");
 const addVehicleSchema = require("./schemas/addVehicleSchema.js");
 const editServiceSchema = require("./schemas/editServiceSchema.js");
+const addMileageLogSchema = require("./schemas/addMileageLogSchema.js");
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -364,6 +365,35 @@ return res.status(404).json({
             message: "Internal server error! Try again later!"
         })
     }
+})
+app.post("/api/addMileageLog", authenticateToken, async (req, res) => {
+    const {mileage, mileageDate, mileageTest} = req.body;
+    let vehicleID;
+    if(mongoose.Types.ObjectId.isValid(req.body.vehicleID)){
+        vehicleID = new mongoose.Types.ObjectId(`${req.body.vehicleID}`)
+    } else {
+        return res.status(400).json({
+            error: "Invalid vehicle ID!",
+            message: "Provided vehicle ID is incorrect!"
+        })
+    }
+    try{
+        await addMileageLogSchema.validateAsync({
+            mileage, 
+            mileageDate,
+            vehicleID,
+            userID: req.userID,
+            mileageTest
+        })
+    } catch (error){
+        return res.status(400).json({
+            error: "Bad Request",
+            message: error.details?.map(detail => detail.message).join(', ') || error.message
+        });
+    }
+    return res.status(200).json({
+        message: "Validation success!"
+    })
 })
 app.delete("/api/deleteVehicle", authenticateToken, async (req, res) => {
     try{
