@@ -434,7 +434,7 @@ app.delete("/api/deleteService", authenticateToken, async (req, res) => {
                 message: "You do not have permission to delete service!"
             })
         }
-        const index = vehicle.services.findIndex(i => i._id.toString() === serviceID);
+        const index = vehicle.services.findIndex(i => i._id.equals(serviceID));
         if(index === -1)
             return res.status(404).json({
                 error: "Not found!",
@@ -442,7 +442,7 @@ app.delete("/api/deleteService", authenticateToken, async (req, res) => {
             });
         const serviceToRemove = vehicle.services.splice(index,1)[0];
         const mileageID = serviceToRemove.mileage;
-        const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id === mileageID);
+        const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id.equals(mileageID));
         if(mileageIndex === -1)
             return res.status(500).json({
                 error: "Internal server error!",
