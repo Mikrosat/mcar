@@ -20,6 +20,11 @@ const mileageTrackSchema = new mongoose.Schema({
     mileage: {
         type: Number,
         required: true
+    },
+    isLog: {
+        type: Boolean,
+        required: true,
+        default: true
     }
 })
 const servicesSchema = new mongoose.Schema({

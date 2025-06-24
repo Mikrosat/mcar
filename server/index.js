@@ -209,7 +209,8 @@ app.post("/api/addVehicle", authenticateToken, async (req, res) => {
             mileageTrack: [
                 {
                     mileageDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-                    mileage: mileage
+                    mileage: mileage,
+                    isLog: false 
                 }
             ],
             serivces: []
@@ -258,7 +259,8 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
     const newMileage = {
         mileageDate: date,
         mileage: mileage,
-        _id: mileageID
+        _id: mileageID,
+        isLog: false
     };
     const newService = {
         title: title,
@@ -337,7 +339,8 @@ app.post("/api/editService", authenticateToken, async (req, res) => {
                 const newMileageObject = {
                     mileageDate: date,
                     mileage: mileage,
-                    _id: mileageID
+                    _id: mileageID,
+                    isLog: false
                 };
 
                 vehicle.services[serviceIndex] = newServiceObject;
@@ -442,7 +445,7 @@ app.delete("/api/deleteService", authenticateToken, async (req, res) => {
             });
         const serviceToRemove = vehicle.services.splice(index,1)[0];
         const mileageID = serviceToRemove.mileage;
-        const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id === mileageID);
+        const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id.toString() === mileageID);
         if(mileageIndex === -1)
             return res.status(500).json({
                 error: "Internal server error!",
