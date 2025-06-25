@@ -391,9 +391,27 @@ app.post("/api/addMileageLog", authenticateToken, async (req, res) => {
             message: error.details?.map(detail => detail.message).join(', ') || error.message
         });
     }
-    return res.status(200).json({
-        message: "Validation success!"
-    })
+    try{
+        const vehicle = await Vehicle.findById(vehicleID);
+
+        const newMileageLog= {
+            mileageDate: mileageDate,
+            mileage: mileage,
+            isLog: true
+        }
+
+        vehicle.mileageTrack.push(newMileageLog);
+        await vehicle.save()
+        return res.status(200).json({
+            message: "Mileage log saved!"
+        })
+    } catch (err){
+        console.error("An error has been occured while adding mileage log: ",err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
+    }
 })
 app.delete("/api/deleteVehicle", authenticateToken, async (req, res) => {
     try{
