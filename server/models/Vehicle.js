@@ -24,7 +24,7 @@ const mileageTrackSchema = new mongoose.Schema({
     isLog: {
         type: Boolean,
         required: true,
-        default: true
+        default: false
     }
 })
 const servicesSchema = new mongoose.Schema({

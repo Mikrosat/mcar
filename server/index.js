@@ -512,6 +512,64 @@ app.delete("/api/deleteService", authenticateToken, async (req, res) => {
         })
     }
 })
+app.delete("/api/deleteMileageLog", authenticateToken, async (req, res) => {
+    let vehicleID, mileageLogID;
+    if(mongoose.Types.ObjectId.isValid(req.body.vehicleID))
+        vehicleID = new mongoose.Types.ObjectId(`${req.body.vehicleID}`);
+    else
+        return res.status(400).json({ error: "Bad Request", message: "Provided vehicle ID is invalid!"});
+
+    if(mongoose.Types.ObjectId.isValid(req.body.mileageLogID))
+        mileageLogID = new mongoose.Types.ObjectId(`${req.body.mileageLogID}`);
+    else
+        return res.status(400).json({ error: "Bad Request", message: "Provided mileage log ID is invalid!"});
+
+    try{
+        const vehicle = await Vehicle.findById(vehicleID);
+
+        if(!vehicle){
+            return res.status(404).json({
+                error: "Not found!",
+                message: "Vehicle with provided ID does not exist!"
+            });
+        }
+
+        const hasAccess = vehicle.owners.some(owner =>
+            owner.ownerID.toString() === req.userID &&
+            (owner.role === 'Owner' || owner.role === 'Admin')
+        );
+
+        if(!hasAccess){
+            return res.status(401).json({
+                error: "Access denied!",
+                message: "You do not have permission to delete mileage log!"
+            })
+        }
+
+        const mileageLog = vehicle.mileageTrack.id(mileageLogID);
+        if(!mileageLog)
+            return res.status(404).json({
+                error: "Not found",
+                message: "Mileage log at provided ID does not exist!"
+            })
+        if(!mileageLog.isLog)
+            return res.status(401).json({
+                error: "Not deletable",
+                message: "Only manually logged mileage can be deleted!"
+            })
+
+        return res.status(200).json({
+            message: "Validation success"
+        })
+
+    } catch (err){
+        console.error(`An error has been occured while deleting mileage log: `,err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
+    }
+})
 app.get("/api/getAllVehicles", authenticateToken, async (req, res) => {
     try{
         const vehicles = await Vehicle.find({
