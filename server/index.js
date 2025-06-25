@@ -21,6 +21,7 @@ const registerSchema = require("./schemas/registerSchema.js");
 const addServiceSchema = require("./schemas/addServiceSchema.js");
 const addVehicleSchema = require("./schemas/addVehicleSchema.js");
 const editServiceSchema = require("./schemas/editServiceSchema.js");
+const addMileageLogSchema = require("./schemas/addMileageLogSchema.js");
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -209,7 +210,8 @@ app.post("/api/addVehicle", authenticateToken, async (req, res) => {
             mileageTrack: [
                 {
                     mileageDate: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-                    mileage: mileage
+                    mileage: mileage,
+                    isLog: false 
                 }
             ],
             serivces: []
@@ -258,7 +260,8 @@ app.post("/api/addService", authenticateToken, async (req, res) => {
     const newMileage = {
         mileageDate: date,
         mileage: mileage,
-        _id: mileageID
+        _id: mileageID,
+        isLog: false
     };
     const newService = {
         title: title,
@@ -337,7 +340,8 @@ app.post("/api/editService", authenticateToken, async (req, res) => {
                 const newMileageObject = {
                     mileageDate: date,
                     mileage: mileage,
-                    _id: mileageID
+                    _id: mileageID,
+                    isLog: false
                 };
 
                 vehicle.services[serviceIndex] = newServiceObject;
@@ -356,6 +360,53 @@ return res.status(404).json({
 });
     } catch (err){
         console.error("An error has been occured while editing service: ",err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
+    }
+})
+app.post("/api/addMileageLog", authenticateToken, async (req, res) => {
+    const {mileage, mileageDate, mileageTest} = req.body;
+    let vehicleID;
+    if(mongoose.Types.ObjectId.isValid(req.body.vehicleID)){
+        vehicleID = new mongoose.Types.ObjectId(`${req.body.vehicleID}`)
+    } else {
+        return res.status(400).json({
+            error: "Invalid vehicle ID!",
+            message: "Provided vehicle ID is incorrect!"
+        })
+    }
+    try{
+        await addMileageLogSchema.validateAsync({
+            mileage, 
+            mileageDate,
+            vehicleID,
+            userID: req.userID,
+            mileageTest
+        })
+    } catch (error){
+        return res.status(400).json({
+            error: "Bad Request",
+            message: error.details?.map(detail => detail.message).join(', ') || error.message
+        });
+    }
+    try{
+        const vehicle = await Vehicle.findById(vehicleID);
+
+        const newMileageLog= {
+            mileageDate: mileageDate,
+            mileage: mileage,
+            isLog: true
+        }
+
+        vehicle.mileageTrack.push(newMileageLog);
+        await vehicle.save()
+        return res.status(200).json({
+            message: "Mileage log saved!"
+        })
+    } catch (err){
+        console.error("An error has been occured while adding mileage log: ",err);
         return res.status(500).json({
             error: "Internal server error!",
             message: "Internal server error! Try again later!"
@@ -442,7 +493,11 @@ app.delete("/api/deleteService", authenticateToken, async (req, res) => {
             });
         const serviceToRemove = vehicle.services.splice(index,1)[0];
         const mileageID = serviceToRemove.mileage;
+<<<<<<< HEAD
         const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id.equals(mileageID));
+=======
+        const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id.toString() === mileageID);
+>>>>>>> feature/mileageLog
         if(mileageIndex === -1)
             return res.status(500).json({
                 error: "Internal server error!",
