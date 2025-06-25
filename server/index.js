@@ -400,6 +400,18 @@ app.post("/api/addMileageLog", authenticateToken, async (req, res) => {
             isLog: true
         }
 
+        const hasAccess = vehicle.owners.some(owner =>
+            owner.ownerID.toString() === req.userID &&
+            (owner.role === 'Owner' || owner.role === 'Admin')
+        );
+
+        if(!hasAccess){
+            return res.status(401).json({
+                error: "Unathorized",
+                message: "You do not have permission to delete service!"
+            })
+        }
+
         vehicle.mileageTrack.push(newMileageLog);
         await vehicle.save()
         return res.status(200).json({
