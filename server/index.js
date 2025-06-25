@@ -493,11 +493,7 @@ app.delete("/api/deleteService", authenticateToken, async (req, res) => {
             });
         const serviceToRemove = vehicle.services.splice(index,1)[0];
         const mileageID = serviceToRemove.mileage;
-<<<<<<< HEAD
         const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id.equals(mileageID));
-=======
-        const mileageIndex = vehicle.mileageTrack.findIndex(i => i._id.toString() === mileageID);
->>>>>>> feature/mileageLog
         if(mileageIndex === -1)
             return res.status(500).json({
                 error: "Internal server error!",
