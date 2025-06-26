@@ -22,6 +22,7 @@ const addServiceSchema = require("./schemas/addServiceSchema.js");
 const addVehicleSchema = require("./schemas/addVehicleSchema.js");
 const editServiceSchema = require("./schemas/editServiceSchema.js");
 const addMileageLogSchema = require("./schemas/addMileageLogSchema.js");
+const changePasswordSchema = require('./schemas/changePasswordSchema.js');
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -230,6 +231,34 @@ app.post("/api/addVehicle", authenticateToken, async (req, res) => {
     }
 
 });
+app.post("/api/changePassword", authenticateToken, async (req, res) => {
+    const {oldPassword, newPassword} = req.body;
+    const userID = req.userID;
+    try{
+        await changePasswordSchema.validateAsync({
+            oldPassword,
+            newPassword,
+            userID
+        })
+    } catch (error){
+        return res.status(400).json({
+            error: "Bad request!",
+            message: error.details?.map(detail => detail.message).join(', ') || error.message
+        });
+    }
+    try{
+        await User.updateOne({_id: userID}, {password: await bcrypt.hash(newPassword, 10)});
+        return res.status(200).json({
+            message: "Password changed!"
+        })
+    } catch (err){
+        console.error("An error has been occured while changing password: ", err);
+        return res.status(500).json({
+            error: "Internal server error!",
+            message: "Internal server error! Try again later!"
+        })
+    }
+})
 app.post("/api/addService", authenticateToken, async (req, res) => {
     const {title, type, description, mileage, mileageTest, cost} = req.body;
     const date = new Date(req.body.date);
