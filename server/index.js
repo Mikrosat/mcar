@@ -546,22 +546,25 @@ app.delete("/api/deleteMileageLog", authenticateToken, async (req, res) => {
             })
         }
 
-        const mileageLog = vehicle.mileageTrack.id(mileageLogID);
-        if(!mileageLog)
+        const mileageLogIndex = vehicle.mileageTrack.findIndex(log => log._id.equals(mileageLogID));
+        if(mileageLogIndex === -1)
             return res.status(404).json({
                 error: "Not found",
                 message: "Mileage log at provided ID does not exist!"
             })
-        if(!mileageLog.isLog)
+
+        if(!vehicle.mileageTrack[mileageLogIndex].isLog)
             return res.status(401).json({
                 error: "Not deletable",
                 message: "Only manually logged mileage can be deleted!"
             })
+            
 
+        vehicle.mileageTrack.splice(mileageLogIndex, 1);
+        await vehicle.save();
         return res.status(200).json({
-            message: "Validation success"
+            message: "Mileage log deleted!"
         })
-
     } catch (err){
         console.error(`An error has been occured while deleting mileage log: `,err);
         return res.status(500).json({
