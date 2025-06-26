@@ -22,6 +22,7 @@ const addServiceSchema = require("./schemas/addServiceSchema.js");
 const addVehicleSchema = require("./schemas/addVehicleSchema.js");
 const editServiceSchema = require("./schemas/editServiceSchema.js");
 const addMileageLogSchema = require("./schemas/addMileageLogSchema.js");
+const changePasswordSchema = require('./schemas/changePasswordSchema.js');
 
 const blacklistFilePath = path.join(__dirname, 'blacklist.json');
 
@@ -230,6 +231,25 @@ app.post("/api/addVehicle", authenticateToken, async (req, res) => {
     }
 
 });
+app.post("/api/changePassword", authenticateToken, async (req, res) => {
+    const {oldPassword, newPassword} = req.body;
+    const userID = req.userID;
+    try{
+        await changePasswordSchema.validateAsync({
+            oldPassword,
+            newPassword,
+            userID
+        })
+    } catch (error){
+        return res.status(400).json({
+            error: "Bad request!",
+            message: error.details?.map(detail => detail.message).join(', ') || error.message
+        });
+    }
+    return res.status(200).json({
+        message: "Validation success!"
+    });
+})
 app.post("/api/addService", authenticateToken, async (req, res) => {
     const {title, type, description, mileage, mileageTest, cost} = req.body;
     const date = new Date(req.body.date);
